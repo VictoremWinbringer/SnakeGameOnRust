@@ -1,0 +1,6 @@
+[package]
+name = "game"
+version = "0.1.0"
+authors = ["VictoremWinbringer <victor@mail.ru>"]
+
+[dependencies]
