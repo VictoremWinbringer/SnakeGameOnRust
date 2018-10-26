@@ -111,3 +111,18 @@ fn main() {
     println!("Hello, world!");
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_point_intesect() {
+        let p1 = Point{x:1,y:1};
+        let p2 = Point{x:1,y:1};
+        let p  = Point{x:2,y:1};
+        assert_eq!(true,p2.intersects(&p1));
+        assert_eq!(true,p1.intersects(&p2));
+        assert_eq!(false,p1.intersects(&p));
+        assert_eq!(false,p.intersects(&p1));
+    }
+}
