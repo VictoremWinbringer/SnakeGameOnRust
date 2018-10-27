@@ -42,7 +42,6 @@ struct Snake {
     points: std::collections::VecDeque<Point>,
     start_x:u8,
     start_y:u8,
-    isAlive: bool
 }
 
 impl Snake {
@@ -51,7 +50,7 @@ impl Snake {
         for i in 0..3 {
             points.push_front(Point{x:x+i,y: i + y });
         }
-        Snake{direction:Direction::Right, points:points, start_x:x,start_y:y, isAlive: true}
+        Snake{direction:Direction::Right, points, start_x:x,start_y:y}
     }
 
     pub fn grow(mut self) -> Snake {
