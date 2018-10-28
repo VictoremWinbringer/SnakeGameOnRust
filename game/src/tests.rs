@@ -121,3 +121,15 @@ fn test_try_intersect_tail_false(){
     assert_ne!(snake,snake2);
     assert_eq!(1, snake.points.len() - snake2.points.len());
 }
+
+#[test]
+fn test_mov_snake_should_move_snake_to_1_on_direction(){
+    let snake = Snake::new(1,2);
+    let movedSnake = snake.clone().move_snake();
+    let head = snake.head();
+    let movedHead = movedSnake.head();
+
+    assert_eq!(snake.direction, Direction::Right);
+    assert_eq!(head.y, movedHead.y);
+    assert_eq!(head.x, movedHead.x -1);
+}

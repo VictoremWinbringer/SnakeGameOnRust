@@ -1,10 +1,6 @@
-extern crate termion;
-extern crate term;
 
-use term::stdout;
-use termion::raw::IntoRawMode;
-use std::io::Write;
 
+use termion::*;
 //Entities ------------------------------------------------------------------
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
@@ -113,29 +109,56 @@ impl Snake {
     pub fn head(&self) -> Point {
         self.points.front().unwrap().clone()
     }
+
+    pub fn move_snake(mut self) -> Snake {
+        if let Some(mut tail) = self.points.pop_back() {
+            let head = self.head();
+            match self.direction {
+                Direction::Right => {
+                    tail.x = head.x + 1;
+                    tail.y = head.y;
+                }
+                Direction::Left => {
+                    tail.x = head.x - 1;
+                    tail.y = head.y;
+                }
+                Direction::Top => {
+                    tail.x = head.x;
+                    tail.y = head.y - 1;
+                }
+                Direction::Bottom => {
+                    tail.x = head.x;
+                    tail.y = head.y + 1;
+                }
+            }
+            self.points.push_front(tail);
+        }
+        self
+    }
 }
 
 //Data Access Layer ----------------------------------------------------------------
 
 struct PointWriter {
-    symbol:char
+    symbol: char
 }
 
 impl PointWriter {
     pub fn new(symbol: char) -> PointWriter {
-        PointWriter{symbol}
+        PointWriter { symbol }
     }
-    pub fn write(&self, point:&Point) {
+    pub fn write(&self, point: &Point) {
         let mut stdout = stdout().into_raw_mode().unwrap();
-        write!(stdout, "{}{}", termion::cursor::Goto(point.x.into(),point.y.into()),self.symbol)
+        write!(stdout, "{}{}", termion::cursor::Goto(point.x.into(), point.y.into()), self.symbol)
             .unwrap();
         stdout.flush().unwrap();
     }
 }
 
-struct FrameWriter{
-    symbol:char
+struct FrameWriter {
+    symbol: char
 }
+
 
 fn main() {
     println!("Hello, world!");
