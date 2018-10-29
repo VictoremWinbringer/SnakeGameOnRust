@@ -133,3 +133,11 @@ fn test_mov_snake_should_move_snake_to_1_on_direction(){
     assert_eq!(head.y, movedHead.y);
     assert_eq!(head.x, movedHead.x -1);
 }
+
+#[test]
+fn generate_should_generate_point_in_frame(){
+    let frame = Frame {min_x:0,min_y:0,max_x:5,max_y:5};
+    let point1 = FoodGenerator::generate(&frame);
+    let point2 = FoodGenerator::generate(&frame);
+    assert_ne!(point1,point2);
+}

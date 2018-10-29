@@ -1,6 +1,6 @@
+extern crate rand;
 
-
-use termion::*;
+use rand::Rng;
 //Entities ------------------------------------------------------------------
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
@@ -143,25 +143,102 @@ struct PointWriter {
     symbol: char
 }
 
-impl PointWriter {
-    pub fn new(symbol: char) -> PointWriter {
-        PointWriter { symbol }
-    }
-    pub fn write(&self, point: &Point) {
-        let mut stdout = stdout().into_raw_mode().unwrap();
-        write!(stdout, "{}{}", termion::cursor::Goto(point.x.into(), point.y.into()), self.symbol)
-            .unwrap();
-        stdout.flush().unwrap();
-    }
-}
+//impl PointWriter {
+//    pub fn new(symbol: char) -> PointWriter {
+//        PointWriter { symbol }
+//    }
+//    pub fn write(&self, point: &Point) {
+//        let mut stdout = stdout().into_raw_mode().unwrap();
+//        write!(stdout, "{}{}", termion::cursor::Goto(point.x.into(), point.y.into()), self.symbol)
+//            .unwrap();
+//        stdout.flush().unwrap();
+//    }
+//}
 
 struct FrameWriter {
     symbol: char
 }
 
+struct  FoodGenerator {
+
+}
+
+impl FoodGenerator {
+    pub fn generate(in_frame:&Frame) -> Point {
+        let x = rand::thread_rng().gen_range(in_frame.min_x+1,in_frame.max_x);
+        let y = rand::thread_rng().gen_range(in_frame.min_y+1,in_frame.max_y);
+        Point{x,y}
+    }
+}
+
+extern crate three;
+extern crate cgmath;
+
+use cgmath::prelude::*;
+use three::*;
 
 fn main() {
-    println!("Hello, world!");
+
+    let mut window = three::Window::new("3D Snake Game By Victorem");
+    window.scene.background = three::Background::Color(0xf0e0b6);
+
+    let camera = window.factory.perspective_camera(75.0, 1.0 .. 50.0);
+    camera.set_position([3.0, 3.0, 40.0]);
+
+    let sphere = three::Geometry::uv_sphere(5.0, 24, 24);
+    let green = three::material::Phong{
+        color: three::color::GREEN,
+        glossiness: 30.0
+    };
+    let blue = three::material::Basic {
+        color: three::color::BLUE,
+        map: None,
+    };
+    let red = three::material::Basic {
+        color: three::color::RED,
+        map: None,
+    };
+    let yellow =  three::material::Basic {
+        color: three::color::RED | three::color::GREEN,
+        map: None,
+    };
+
+    let green_sphere = window.factory.mesh(sphere, green);
+    let blue_sphere = window.factory.mesh_instance_with_material(&green_sphere, blue);
+    let red_sphere = window.factory.mesh_instance_with_material(&green_sphere, red);
+    let yellow_sphere = window.factory.mesh_instance_with_material(&green_sphere, yellow);
+    green_sphere.set_position([0.0, 0.0, 0.0]);
+    window.scene.add(&green_sphere);
+
+    let ambient_light = window.factory.ambient_light(0xdc8874, 0.5);
+    window.scene.add(&ambient_light);
+
+    let mut dir_light = window.factory.directional_light(0xffffff, 0.9);
+
+    dir_light.look_at([150.0, 350.0, 350.0], [0.0, 0.0, 0.0], None);
+
+    let shadow_map = window.factory.shadow_map(2048, 2048);
+
+    dir_light.set_shadow(shadow_map, 400.0, 1.0 .. 1000.0);
+
+    window.scene.add(&dir_light);
+
+
+    let mut timer = three::Timer::new();
+
+    while window.update() && !window.input.hit(three::KEY_ESCAPE) {
+      println!("{}",timer.elapsed());
+        window.render(&camera);
+        if window.input.hit(three::Key::Left) {
+            window.scene.background = three::Background::Color(0xFFFF00);
+        } else if window.input.hit(three::Key::Right) {
+            window.scene.background = three::Background::Color(0xFF0000);
+        }  else if window.input.hit(three::Key::Up) {
+            window.scene.background = three::Background::Color(0x00FF00);
+        }  else if window.input.hit(three::Key::Down) {
+            window.scene.background = three::Background::Color(0x0000FF);
+        }
+    }
 }
 
 #[cfg(test)]
