@@ -1,6 +1,12 @@
 extern crate rand;
+extern crate three;
 
 use rand::Rng;
+//extern crate cgmath;
+
+//use cgmath::prelude::*;
+use three::*;
+
 //Entities ------------------------------------------------------------------
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
@@ -203,11 +209,21 @@ impl Game {
     }
 }
 
-extern crate three;
-//extern crate cgmath;
+//Application Layer
 
-//use cgmath::prelude::*;
-use three::*;
+struct GameController {
+}
+
+impl GameController {
+
+     fn get_state() -> Vec<Mesh> {
+         Vec::new()
+     }
+
+    fn update(time_delta:f32, direction:Option<direction>){
+
+    }
+}
 
 fn main() {
     let mut window = three::Window::new("3D Snake Game By Victorem");
