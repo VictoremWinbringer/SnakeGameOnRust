@@ -177,15 +177,19 @@ struct Game {
 }
 
 impl Game {
-    fn update(mut self, direction: Option<Direction>) -> Game {
-        let mut snake = self.snake.try_intersect_tali()
-            .try_intersect_frame(&self.frame)
-            .try_eat(&self.food);
-        if let Some(d) = direction {
-            snake = snake.turn(d);
-        };
-        snake = snake.move_snake();
-        self.snake = snake;
+    fn update(mut self, direction: Option<Direction>, time_delta: f32) -> Game {
+        if delta % 3 = 0 {
+            let mut snake = self.snake.try_intersect_tali()
+                .try_intersect_frame(&self.frame)
+                .try_eat(&self.food);
+            if let Some(d) = direction {
+                snake = snake.turn(d);
+            };
+            let delta: isize = time_delta.into();
+
+            snake = snake.move_snake();
+            self.snake = snake;
+        }
         self
     }
 
@@ -197,7 +201,7 @@ impl Game {
         for p in self.snake.points.iter().filter(|p| **p != head) {
             vec.push(State { x: p.x, y: p.y, state_type: StateType::Tail });
         }
-        for x in self.frame.min_x..=self.frame.max_x  {
+        for x in self.frame.min_x..=self.frame.max_x {
             vec.push(State { x: x, y: self.frame.max_y, state_type: StateType::Frame });
             vec.push(State { x: x, y: self.frame.min_y, state_type: StateType::Frame });
         }
@@ -211,18 +215,14 @@ impl Game {
 
 //Application Layer
 
-struct GameController {
-}
+struct GameController {}
 
 impl GameController {
-
-     fn get_state() -> Vec<Mesh> {
-         Vec::new()
-     }
-
-    fn update(time_delta:f32, direction:Option<direction>){
-
+    fn get_state() -> Vec<Mesh> {
+        Vec::new()
     }
+
+    fn update(time_delta: f32, direction: Option<direction>) {}
 }
 
 fn main() {
