@@ -144,148 +144,249 @@ impl Snake {
 }
 
 //Data Access Layer ----------------------------------------------------------------
-
-struct FoodGenerator {}
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
+struct FoodGenerator {
+    frame: Frame
+}
 
 impl FoodGenerator {
-    pub fn generate(in_frame: &Frame) -> Point {
-        let x = rand::thread_rng().gen_range(in_frame.min_x + 1, in_frame.max_x);
-        let y = rand::thread_rng().gen_range(in_frame.min_y + 1, in_frame.max_y);
+    pub fn generate(&self) -> Point {
+        let x = rand::thread_rng().gen_range(self.frame.min_x + 1, self.frame.max_x);
+        let y = rand::thread_rng().gen_range(self.frame.min_y + 1, self.frame.max_y);
         Point { x, y }
     }
 }
 
 //Business Logic Layer------------------------------------------------------------
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
+struct Game {
+    snake: Snake,
+    frame: Frame,
+    food: Point,
+    food_generator: FoodGenerator,
+}
 
+impl Game {
+    fn new(height: u8, width: u8) -> Game {
+        let frame = Frame { min_x: 0, min_y: 0, max_x: width, max_y: height };
+        let generator = FoodGenerator { frame: frame.clone() };
+        let food = generator.generate();
+        let snake = Snake::new(width / 2, height / 2);
+        Game {
+            snake: snake,
+            frame: frame,
+            food: food,
+            food_generator: generator,
+        }
+    }
+
+    fn update(mut self, time_delta: f32) -> Game {
+        let delta = time_delta as i32;
+        println!("{}", delta);
+        if delta % 2 == 0 {
+            self.snake = self.snake
+                .move_snake()
+                .try_intersect_tali()
+                .try_intersect_frame(&self.frame)
+                .try_eat(&self.food);
+        }
+        self
+    }
+
+    fn handle_input(mut self, input: Direction) -> Game {
+        let snake = self.snake.turn(input);
+        self.snake = snake;
+        self
+    }
+}
+
+//Application Layer--------------------------------------------------------------
+// --- Model ----
+#[derive(Debug, Clone, Eq, PartialEq)]
 enum StateType {
     Head,
     Tail,
     Food,
     Frame,
 }
-
+impl Default for StateType {
+    fn default() -> StateType {
+        StateType::Frame
+    }
+}
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 struct State {
     x: u8,
     y: u8,
     state_type: StateType,
 }
 
-struct Game {
-    snake: Snake,
-    frame: Frame,
-    food: Point,
+//------------------------------Controller -----------------------------
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
+struct GameController {
+    game: Game
 }
 
-impl Game {
-    fn update(mut self, direction: Option<Direction>, time_delta: f32) -> Game {
-        if delta % 3 = 0 {
-            let mut snake = self.snake.try_intersect_tali()
-                .try_intersect_frame(&self.frame)
-                .try_eat(&self.food);
-            if let Some(d) = direction {
-                snake = snake.turn(d);
-            };
-            let delta: isize = time_delta.into();
-
-            snake = snake.move_snake();
-            self.snake = snake;
-        }
-        self
+impl GameController {
+    fn new() -> GameController {
+        GameController{game:Game::new(30,30)}
     }
 
-    fn draw(&self) -> Vec<State> {
+    fn get_state(&self) -> Vec<State> {
         let mut vec: Vec<State> = Vec::new();
-        vec.push(State { x: self.food.x, y: self.food.y, state_type: StateType::Food });
-        let head = self.snake.head();
+        vec.push(State { x: self.game.food.x, y: self.game.food.y, state_type: StateType::Food });
+        let head = self.game.snake.head();
         vec.push(State { x: head.x, y: head.y, state_type: StateType::Head });
-        for p in self.snake.points.iter().filter(|p| **p != head) {
+        for p in self.game.snake.points.iter().filter(|p| **p != head) {
             vec.push(State { x: p.x, y: p.y, state_type: StateType::Tail });
         }
-        for x in self.frame.min_x..=self.frame.max_x {
-            vec.push(State { x: x, y: self.frame.max_y, state_type: StateType::Frame });
-            vec.push(State { x: x, y: self.frame.min_y, state_type: StateType::Frame });
+        for x in self.game.frame.min_x..=self.game.frame.max_x {
+            vec.push(State { x: x, y: self.game.frame.max_y, state_type: StateType::Frame });
+            vec.push(State { x: x, y: self.game.frame.min_y, state_type: StateType::Frame });
         }
-        for y in self.frame.min_y..=self.frame.max_y {
-            vec.push(State { x: self.frame.max_x, y: y, state_type: StateType::Frame });
-            vec.push(State { x: self.frame.min_x, y: y, state_type: StateType::Frame });
+        for y in self.game.frame.min_y..=self.game.frame.max_y {
+            vec.push(State { x: self.game.frame.max_x, y: y, state_type: StateType::Frame });
+            vec.push(State { x: self.game.frame.min_x, y: y, state_type: StateType::Frame });
         }
         vec
     }
+
+    fn update(mut self, time_delta: f32, direction: Option<Direction>) -> GameController {
+        let game = self.game.clone();
+        let game = match direction {
+            None => game,
+            Some(d) => game.handle_input(d)
+        };
+      let game = game.update(time_delta);
+        self.game = game;
+        self
+    }
 }
 
-//Application Layer
+//------------------------View ---------------
+struct GameView {
+    controller: GameController,
+    window: three::Window,
+    camera: three::camera::Camera,
+    timer: three::Timer,
+    ambient: three::light::Ambient,
+    directional: three::light::Directional,
+}
 
-struct GameController {}
+impl GameView {
+    fn new() -> GameView {
+        let controller = GameController::new();
 
-impl GameController {
-    fn get_state() -> Vec<Mesh> {
-        Vec::new()
+        let mut window = three::Window::new("3D Snake Game By Victorem");
+        window.scene.background = three::Background::Color(0xf0e0b6);
+
+        let camera = window.factory.perspective_camera(60.0, 1.0..50.0);
+        camera.set_position([15.0, 15.0, 30.0]);
+
+        let ambient_light = window.factory.ambient_light(0xdc8874, 0.5);
+        window.scene.add(&ambient_light);
+
+        let mut dir_light = window.factory.directional_light(0xffffff, 0.9);
+        dir_light.look_at([150.0, 350.0, 350.0], [0.0, 0.0, 0.0], None);
+        let shadow_map = window.factory.shadow_map(2048, 2048);
+        dir_light.set_shadow(shadow_map, 400.0, 1.0..1000.0);
+        window.scene.add(&dir_light);
+
+        let mut timer = three::Timer::new();
+
+        GameView{controller,window,camera,timer,ambient:ambient_light,directional:dir_light}
     }
 
-    fn update(time_delta: f32, direction: Option<direction>) {}
+    fn get_input(&self) -> Option<Direction> {
+        match self.window.input.keys_hit().last() {
+            None => None,
+            Some(k) =>
+                match *k {
+                    three::Key::Left => Some(Direction::Left),
+                    three::Key::Right => Some(Direction::Right),
+                    three::Key::Up => Some(Direction::Top),
+                    three::Key::Down => Some(Direction::Bottom),
+                    _ => None,
+                }
+        }
+    }
+
+    fn get_meshes(&mut self)->Vec<Mesh>{
+        let sphere = &three::Geometry::uv_sphere(0.5, 24, 24);
+        let green = &three::material::Phong {
+            color: three::color::GREEN,
+            glossiness: 30.0,
+        };
+        let blue = &three::material::Basic {
+            color: three::color::BLUE,
+            map: None,
+        };
+        let red = &three::material::Basic {
+            color: three::color::RED,
+            map: None,
+        };
+        let yellow = &three::material::Basic {
+            color: three::color::RED | three::color::GREEN,
+            map: None,
+        };
+
+        self.controller.get_state().iter().map(|s| {
+            let state = s.clone();
+            match state.state_type {
+                StateType::Frame =>{
+                    let m = self.window.factory.mesh(sphere.clone(),blue.clone());
+                    m.set_position([state.x as f32,state.y as f32,0.0]);
+                    m
+                },
+                StateType::Tail =>{
+                    let m= self.window.factory.mesh(sphere.clone(),yellow.clone());
+                    m.set_position([state.x as f32,state.y as f32,0.0]);
+                    m
+                },
+                StateType::Head => {
+                    let m = self.window.factory.mesh(sphere.clone(),red.clone());
+                    m.set_position([state.x as f32,state.y as f32,0.0]);
+                    m
+                },
+                StateType::Food =>{
+                    let m = self.window.factory.mesh(sphere.clone(),green.clone());
+                    m.set_position([state.x as f32,state.y as f32,0.0]);
+                    m
+                }
+            }
+        }).collect()
+    }
+
+    fn update(mut self)-> GameView {
+           let elapsed_time = self.timer.elapsed();
+        let input = self.get_input();
+       let controller = self.controller.update(elapsed_time,input);
+        self.controller = controller;
+        self
+    }
+
+    fn draw(mut self) -> GameView {
+        let  meshes = self.get_meshes();
+        for m in meshes {
+            self.window.scene.add(m);
+        }
+        self.window.render(&self.camera);
+//        while let Some(c) = self.window.scene.first_child.clone() {
+//            self.window.scene.remove(c);
+//        }
+        self
+    }
+
+    pub fn run(mut self){
+        while self.window.update() && !self.window.input.hit(three::KEY_ESCAPE) {
+            self = self.update().draw();
+        }
+    }
 }
 
 fn main() {
-    let mut window = three::Window::new("3D Snake Game By Victorem");
-    window.scene.background = three::Background::Color(0xf0e0b6);
-
-    let camera = window.factory.perspective_camera(75.0, 1.0..50.0);
-    camera.set_position([3.0, 3.0, 40.0]);
-
-    let sphere = three::Geometry::uv_sphere(5.0, 24, 24);
-    let green = three::material::Phong {
-        color: three::color::GREEN,
-        glossiness: 30.0,
-    };
-    let blue = three::material::Basic {
-        color: three::color::BLUE,
-        map: None,
-    };
-    let red = three::material::Basic {
-        color: three::color::RED,
-        map: None,
-    };
-    let yellow = three::material::Basic {
-        color: three::color::RED | three::color::GREEN,
-        map: None,
-    };
-
-    let green_sphere = window.factory.mesh(sphere, green);
-    let blue_sphere = window.factory.mesh_instance_with_material(&green_sphere, blue);
-    let red_sphere = window.factory.mesh_instance_with_material(&green_sphere, red);
-    let yellow_sphere = window.factory.mesh_instance_with_material(&green_sphere, yellow);
-    green_sphere.set_position([0.0, 0.0, 0.0]);
-    window.scene.add(&green_sphere);
-
-    let ambient_light = window.factory.ambient_light(0xdc8874, 0.5);
-    window.scene.add(&ambient_light);
-
-    let mut dir_light = window.factory.directional_light(0xffffff, 0.9);
-
-    dir_light.look_at([150.0, 350.0, 350.0], [0.0, 0.0, 0.0], None);
-
-    let shadow_map = window.factory.shadow_map(2048, 2048);
-
-    dir_light.set_shadow(shadow_map, 400.0, 1.0..1000.0);
-
-    window.scene.add(&dir_light);
-
-
-    let mut timer = three::Timer::new();
-
-    while window.update() && !window.input.hit(three::KEY_ESCAPE) {
-        println!("{}", timer.elapsed());
-        window.render(&camera);
-        if window.input.hit(three::Key::Left) {
-            window.scene.background = three::Background::Color(0xFFFF00);
-        } else if window.input.hit(three::Key::Right) {
-            window.scene.background = three::Background::Color(0xFF0000);
-        } else if window.input.hit(three::Key::Up) {
-            window.scene.background = three::Background::Color(0x00FF00);
-        } else if window.input.hit(three::Key::Down) {
-            window.scene.background = three::Background::Color(0x0000FF);
-        }
-    }
+    let mut view = GameView::new();
+    view.run();
 }
 
 #[cfg(test)]
