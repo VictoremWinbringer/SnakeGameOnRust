@@ -2,9 +2,6 @@ extern crate rand;
 extern crate three;
 
 use rand::Rng;
-//extern crate cgmath;
-
-//use cgmath::prelude::*;
 use three::*;
 
 //Entities ------------------------------------------------------------------
@@ -182,7 +179,6 @@ impl Game {
 
     fn update(mut self, time_delta: f32) -> Game {
         let delta = time_delta as i32;
-        println!("{}", delta);
         if delta % 2 == 0 {
             self.snake = self.snake
                 .move_snake()
@@ -280,7 +276,7 @@ impl GameView {
         let mut window = three::Window::new("3D Snake Game By Victorem");
         window.scene.background = three::Background::Color(0xf0e0b6);
 
-        let camera = window.factory.perspective_camera(60.0, 1.0..50.0);
+        let camera = window.factory.perspective_camera(60.0, 10.0..40.0);
         camera.set_position([15.0, 15.0, 30.0]);
 
         let ambient_light = window.factory.ambient_light(0xdc8874, 0.5);
@@ -304,8 +300,8 @@ impl GameView {
                 match *k {
                     three::Key::Left => Some(Direction::Left),
                     three::Key::Right => Some(Direction::Right),
-                    three::Key::Up => Some(Direction::Top),
-                    three::Key::Down => Some(Direction::Bottom),
+                    three::Key::Down => Some(Direction::Top),
+                    three::Key::Up => Some(Direction::Bottom),
                     _ => None,
                 }
         }
@@ -317,17 +313,17 @@ impl GameView {
             color: three::color::GREEN,
             glossiness: 30.0,
         };
-        let blue = &three::material::Basic {
+        let blue = &three::material::Phong {
             color: three::color::BLUE,
-            map: None,
+            glossiness: 30.0,
         };
-        let red = &three::material::Basic {
+        let red = &three::material::Phong {
             color: three::color::RED,
-            map: None,
+            glossiness: 30.0,
         };
-        let yellow = &three::material::Basic {
+        let yellow = &three::material::Phong {
             color: three::color::RED | three::color::GREEN,
-            map: None,
+            glossiness: 30.0,
         };
 
         self.controller.get_state().iter().map(|s| {
@@ -367,13 +363,13 @@ impl GameView {
 
     fn draw(mut self) -> GameView {
         let  meshes = self.get_meshes();
-        for m in meshes {
+        for m in &meshes {
             self.window.scene.add(m);
         }
         self.window.render(&self.camera);
-//        while let Some(c) = self.window.scene.first_child.clone() {
-//            self.window.scene.remove(c);
-//        }
+        for m in meshes {
+            self.window.scene.remove(m);
+        }
         self
     }
 
