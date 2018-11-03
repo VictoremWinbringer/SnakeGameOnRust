@@ -83,7 +83,7 @@ impl Snake {
         self
     }
 
-    pub fn try_eat(mut self, point: & Point) -> (Snake,bool) {
+    pub fn try_eat(mut self, point: &Point) -> (Snake, bool) {
         let head = self.head();
         if head.intersects(point) {
             return (self.grow(), true);
@@ -178,10 +178,10 @@ impl Game {
     }
 
     fn update(mut self, time_delta: f32) -> Game {
-            self.snake = self.snake.clone()
-                .move_snake()
-                .try_intersect_tali()
-                .try_intersect_frame(&self.frame);
+        self.snake = self.snake.clone()
+            .move_snake()
+            .try_intersect_tali()
+            .try_intersect_frame(&self.frame);
         let pair = self.snake.clone().try_eat(&self.food);
         if pair.1 {
             self.snake = pair.0;
@@ -198,7 +198,7 @@ impl Game {
 }
 
 //Application Layer--------------------------------------------------------------
-      // --- Model ----
+// --- Model ----
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum PointDtoType {
     Head,
@@ -206,11 +206,13 @@ enum PointDtoType {
     Food,
     Frame,
 }
+
 impl Default for PointDtoType {
     fn default() -> PointDtoType {
         PointDtoType::Frame
     }
 }
+
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 struct PointDto {
     x: u8,
@@ -218,18 +220,20 @@ struct PointDto {
     state_type: PointDtoType,
 }
 
-     //------------------------------Controller -----------------------------
+//------------------------------Controller -----------------------------
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 struct GameController {
-    game: Game
+    game: Game,
+    max_score: usize,
+    current_score: usize,
 }
 
 impl GameController {
     fn new() -> GameController {
-        GameController{game:Game::new(30,30)}
+        GameController { game: Game::new(30, 30), max_score: 0, current_score: 0 }
     }
 
-    fn get_state(&self) -> Vec<PointDto> {
+    fn get_state(&mut self) -> Vec<PointDto> {
         let mut vec: Vec<PointDto> = Vec::new();
         vec.push(PointDto { x: self.game.food.x, y: self.game.food.y, state_type: PointDtoType::Food });
         let head = self.game.snake.head();
@@ -245,6 +249,10 @@ impl GameController {
             vec.push(PointDto { x: self.game.frame.max_x, y: y, state_type: PointDtoType::Frame });
             vec.push(PointDto { x: self.game.frame.min_x, y: y, state_type: PointDtoType::Frame });
         }
+        self.current_score = vec.len();
+        if self.current_score > self.max_score {
+            self.max_score = self.current_score;
+        };
         vec
     }
 
@@ -254,13 +262,13 @@ impl GameController {
             None => game,
             Some(d) => game.handle_input(d)
         };
-      let game = game.update(time_delta);
+        let game = game.update(time_delta);
         self.game = game;
         self
     }
 }
 
-     //------------------------View ---------------
+//------------------------View ---------------
 struct GameView {
     controller: GameController,
     window: three::Window,
@@ -268,6 +276,9 @@ struct GameView {
     timer: three::Timer,
     ambient: three::light::Ambient,
     directional: three::light::Directional,
+    font: Font,
+    current_score: Text,
+    max_score: Text
 }
 
 impl GameView {
@@ -275,7 +286,6 @@ impl GameView {
         let controller = GameController::new();
 
         let mut window = three::Window::new("3D Snake Game By Victorem");
-        window.scene.background = three::Background::Color(0xf0e0b6);
 
         let camera = window.factory.perspective_camera(60.0, 10.0..40.0);
         camera.set_position([15.0, 15.0, 30.0]);
@@ -291,7 +301,13 @@ impl GameView {
 
         let mut timer = three::Timer::new();
 
-        GameView{controller,window,camera,timer,ambient:ambient_light,directional:dir_light}
+        let font= window.factory.load_font(format!("{}/DejaVuSans.ttf",env!("CARGO_MANIFEST_DIR")));
+        let current_score = window.factory.ui_text(&font,"0");
+        let mut max_score = window.factory.ui_text(&font, "0");
+        max_score.set_pos([0.0,40.0]);
+        window.scene.add(&current_score);
+        window.scene.add(&max_score);
+        GameView { controller, window, camera, timer, ambient: ambient_light, directional: dir_light, font, current_score, max_score }
     }
 
     fn get_input(&self) -> Option<Direction> {
@@ -308,7 +324,7 @@ impl GameView {
         }
     }
 
-    fn get_meshes(&mut self)->Vec<Mesh>{
+    fn get_meshes(&mut self) -> Vec<Mesh> {
         let sphere = &three::Geometry::uv_sphere(0.5, 24, 24);
         let green = &three::material::Phong {
             color: three::color::GREEN,
@@ -330,40 +346,40 @@ impl GameView {
         self.controller.get_state().iter().map(|s| {
             let state = s.clone();
             match state.state_type {
-                PointDtoType::Frame =>{
-                    let m = self.window.factory.mesh(sphere.clone(),blue.clone());
-                    m.set_position([state.x as f32,state.y as f32,0.0]);
+                PointDtoType::Frame => {
+                    let m = self.window.factory.mesh(sphere.clone(), blue.clone());
+                    m.set_position([state.x as f32, state.y as f32, 0.0]);
                     m
-                },
-                PointDtoType::Tail =>{
-                    let m= self.window.factory.mesh(sphere.clone(),yellow.clone());
-                    m.set_position([state.x as f32,state.y as f32,0.0]);
+                }
+                PointDtoType::Tail => {
+                    let m = self.window.factory.mesh(sphere.clone(), yellow.clone());
+                    m.set_position([state.x as f32, state.y as f32, 0.0]);
                     m
-                },
+                }
                 PointDtoType::Head => {
-                    let m = self.window.factory.mesh(sphere.clone(),red.clone());
-                    m.set_position([state.x as f32,state.y as f32,0.0]);
+                    let m = self.window.factory.mesh(sphere.clone(), red.clone());
+                    m.set_position([state.x as f32, state.y as f32, 0.0]);
                     m
-                },
-                PointDtoType::Food =>{
-                    let m = self.window.factory.mesh(sphere.clone(),green.clone());
-                    m.set_position([state.x as f32,state.y as f32,0.0]);
+                }
+                PointDtoType::Food => {
+                    let m = self.window.factory.mesh(sphere.clone(), green.clone());
+                    m.set_position([state.x as f32, state.y as f32, 0.0]);
                     m
                 }
             }
         }).collect()
     }
 
-    fn update(mut self)-> GameView {
-           let elapsed_time = self.timer.elapsed();
+    fn update(mut self) -> GameView {
+        let elapsed_time = self.timer.elapsed();
         let input = self.get_input();
-       let controller = self.controller.update(elapsed_time,input);
+        let controller = self.controller.update(elapsed_time, input);
         self.controller = controller;
         self
     }
 
     fn draw(mut self) -> GameView {
-        let  meshes = self.get_meshes();
+        let meshes = self.get_meshes();
         for m in &meshes {
             self.window.scene.add(m);
         }
@@ -371,10 +387,12 @@ impl GameView {
         for m in meshes {
             self.window.scene.remove(m);
         }
+        self.max_score.set_text(format!("MAX SCORE: {}", self.controller.max_score));
+        self.current_score.set_text(format!("CURRENT SCORE: {}", self.controller.current_score));
         self
     }
 
-    pub fn run(mut self){
+    pub fn run(mut self) {
         while self.window.update() && !self.window.input.hit(three::KEY_ESCAPE) {
             self = self.update().draw();
         }
