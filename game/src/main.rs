@@ -1,8 +1,13 @@
 extern crate rand;
 extern crate three;
+extern crate bincode;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 
 use rand::Rng;
 use three::*;
+use std::error::Error;
 
 //Entities ------------------------------------------------------------------
 
@@ -141,6 +146,7 @@ impl Snake {
 }
 
 //Data Access Layer ----------------------------------------------------------------
+
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 struct FoodGenerator {
     frame: Frame
@@ -151,6 +157,30 @@ impl FoodGenerator {
         let x = rand::thread_rng().gen_range(self.frame.min_x + 1, self.frame.max_x);
         let y = rand::thread_rng().gen_range(self.frame.min_y + 1, self.frame.max_y);
         Point { x, y }
+    }
+}
+
+#[derive(Serialize,Deserialize)]
+struct ScoreRepository {
+    score: usize
+}
+
+impl ScoreRepository {
+    fn save(value: usize) {
+        use std::fs::File;
+        use std::io::Write;
+        let score = ScoreRepository { score: value };
+        let bytes: Vec<u8> = bincode::serialize(&score).unwrap();
+        let mut file = File::create(".\\score.data").unwrap();
+        file.write_all(&bytes).unwrap();
+    }
+
+    fn load() -> usize {
+        use std::fs::File;
+        use std::io::Read;
+        let mut file = File::open("./score.data").unwrap();
+        let data: ScoreRepository = bincode::deserialize_from(file).unwrap();
+        data.score
     }
 }
 
@@ -226,11 +256,12 @@ struct GameController {
     game: Game,
     max_score: usize,
     current_score: usize,
+    initial_score: usize
 }
 
 impl GameController {
     fn new() -> GameController {
-        GameController { game: Game::new(30, 30), max_score: 0, current_score: 0 }
+        GameController { game: Game::new(30, 30), max_score: 0, current_score: 0, initial_score: 0 }
     }
 
     fn get_state(&mut self) -> Vec<PointDto> {
@@ -249,9 +280,16 @@ impl GameController {
             vec.push(PointDto { x: self.game.frame.max_x, y: y, state_type: PointDtoType::Frame });
             vec.push(PointDto { x: self.game.frame.min_x, y: y, state_type: PointDtoType::Frame });
         }
-        self.current_score = vec.len();
+        if self.initial_score == 0 {
+            self.initial_score = vec.len();
+        }
+        if self.max_score == 0 {
+            self.max_score = ScoreRepository::load();
+        }
+        self.current_score = vec.len() - self.initial_score;
         if self.current_score > self.max_score {
             self.max_score = self.current_score;
+            ScoreRepository::save(self.max_score.clone());
         };
         vec
     }
@@ -278,7 +316,7 @@ struct GameView {
     directional: three::light::Directional,
     font: Font,
     current_score: Text,
-    max_score: Text
+    max_score: Text,
 }
 
 impl GameView {
@@ -301,10 +339,10 @@ impl GameView {
 
         let mut timer = three::Timer::new();
 
-        let font= window.factory.load_font(format!("{}/DejaVuSans.ttf",env!("CARGO_MANIFEST_DIR")));
-        let current_score = window.factory.ui_text(&font,"0");
+        let font = window.factory.load_font(format!("{}/DejaVuSans.ttf", env!("CARGO_MANIFEST_DIR")));
+        let current_score = window.factory.ui_text(&font, "0");
         let mut max_score = window.factory.ui_text(&font, "0");
-        max_score.set_pos([0.0,40.0]);
+        max_score.set_pos([0.0, 40.0]);
         window.scene.add(&current_score);
         window.scene.add(&max_score);
         GameView { controller, window, camera, timer, ambient: ambient_light, directional: dir_light, font, current_score, max_score }

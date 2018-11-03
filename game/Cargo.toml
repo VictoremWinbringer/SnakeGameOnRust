@@ -6,4 +6,6 @@ authors = ["VictoremWinbringer <victor@mail.ru>"]
 [dependencies]
 rand="*"
 three="*"
-cgmath="*"
+serde="*"
+bincode="*"
+serde_derive="*"
