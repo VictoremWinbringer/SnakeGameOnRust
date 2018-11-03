@@ -83,12 +83,12 @@ impl Snake {
         self
     }
 
-    pub fn try_eat(mut self, point: &Point) -> Snake {
+    pub fn try_eat(mut self, point: & Point) -> (Snake,bool) {
         let head = self.head();
         if head.intersects(point) {
-            return self.grow();
+            return (self.grow(), true);
         }
-        self
+        (self, false)
     }
 
     pub fn try_intersect_frame(mut self, frame: &Frame) -> Snake {
@@ -178,13 +178,14 @@ impl Game {
     }
 
     fn update(mut self, time_delta: f32) -> Game {
-        let delta = time_delta as i32;
-        if delta % 2 == 0 {
-            self.snake = self.snake
+            self.snake = self.snake.clone()
                 .move_snake()
                 .try_intersect_tali()
-                .try_intersect_frame(&self.frame)
-                .try_eat(&self.food);
+                .try_intersect_frame(&self.frame);
+        let pair = self.snake.clone().try_eat(&self.food);
+        if pair.1 {
+            self.snake = pair.0;
+            self.food = self.food_generator.generate();
         }
         self
     }
@@ -197,7 +198,7 @@ impl Game {
 }
 
 //Application Layer--------------------------------------------------------------
-// --- Model ----
+      // --- Model ----
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum PointDtoType {
     Head,
@@ -217,7 +218,7 @@ struct PointDto {
     state_type: PointDtoType,
 }
 
-//------------------------------Controller -----------------------------
+     //------------------------------Controller -----------------------------
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 struct GameController {
     game: Game
@@ -259,7 +260,7 @@ impl GameController {
     }
 }
 
-//------------------------View ---------------
+     //------------------------View ---------------
 struct GameView {
     controller: GameController,
     window: three::Window,
