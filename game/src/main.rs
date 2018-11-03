@@ -199,22 +199,22 @@ impl Game {
 //Application Layer--------------------------------------------------------------
 // --- Model ----
 #[derive(Debug, Clone, Eq, PartialEq)]
-enum StateType {
+enum PointDtoType {
     Head,
     Tail,
     Food,
     Frame,
 }
-impl Default for StateType {
-    fn default() -> StateType {
-        StateType::Frame
+impl Default for PointDtoType {
+    fn default() -> PointDtoType {
+        PointDtoType::Frame
     }
 }
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
-struct State {
+struct PointDto {
     x: u8,
     y: u8,
-    state_type: StateType,
+    state_type: PointDtoType,
 }
 
 //------------------------------Controller -----------------------------
@@ -228,21 +228,21 @@ impl GameController {
         GameController{game:Game::new(30,30)}
     }
 
-    fn get_state(&self) -> Vec<State> {
-        let mut vec: Vec<State> = Vec::new();
-        vec.push(State { x: self.game.food.x, y: self.game.food.y, state_type: StateType::Food });
+    fn get_state(&self) -> Vec<PointDto> {
+        let mut vec: Vec<PointDto> = Vec::new();
+        vec.push(PointDto { x: self.game.food.x, y: self.game.food.y, state_type: PointDtoType::Food });
         let head = self.game.snake.head();
-        vec.push(State { x: head.x, y: head.y, state_type: StateType::Head });
+        vec.push(PointDto { x: head.x, y: head.y, state_type: PointDtoType::Head });
         for p in self.game.snake.points.iter().filter(|p| **p != head) {
-            vec.push(State { x: p.x, y: p.y, state_type: StateType::Tail });
+            vec.push(PointDto { x: p.x, y: p.y, state_type: PointDtoType::Tail });
         }
         for x in self.game.frame.min_x..=self.game.frame.max_x {
-            vec.push(State { x: x, y: self.game.frame.max_y, state_type: StateType::Frame });
-            vec.push(State { x: x, y: self.game.frame.min_y, state_type: StateType::Frame });
+            vec.push(PointDto { x: x, y: self.game.frame.max_y, state_type: PointDtoType::Frame });
+            vec.push(PointDto { x: x, y: self.game.frame.min_y, state_type: PointDtoType::Frame });
         }
         for y in self.game.frame.min_y..=self.game.frame.max_y {
-            vec.push(State { x: self.game.frame.max_x, y: y, state_type: StateType::Frame });
-            vec.push(State { x: self.game.frame.min_x, y: y, state_type: StateType::Frame });
+            vec.push(PointDto { x: self.game.frame.max_x, y: y, state_type: PointDtoType::Frame });
+            vec.push(PointDto { x: self.game.frame.min_x, y: y, state_type: PointDtoType::Frame });
         }
         vec
     }
@@ -329,22 +329,22 @@ impl GameView {
         self.controller.get_state().iter().map(|s| {
             let state = s.clone();
             match state.state_type {
-                StateType::Frame =>{
+                PointDtoType::Frame =>{
                     let m = self.window.factory.mesh(sphere.clone(),blue.clone());
                     m.set_position([state.x as f32,state.y as f32,0.0]);
                     m
                 },
-                StateType::Tail =>{
+                PointDtoType::Tail =>{
                     let m= self.window.factory.mesh(sphere.clone(),yellow.clone());
                     m.set_position([state.x as f32,state.y as f32,0.0]);
                     m
                 },
-                StateType::Head => {
+                PointDtoType::Head => {
                     let m = self.window.factory.mesh(sphere.clone(),red.clone());
                     m.set_position([state.x as f32,state.y as f32,0.0]);
                     m
                 },
-                StateType::Food =>{
+                PointDtoType::Food =>{
                     let m = self.window.factory.mesh(sphere.clone(),green.clone());
                     m.set_position([state.x as f32,state.y as f32,0.0]);
                     m
