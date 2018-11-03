@@ -160,31 +160,35 @@ impl FoodGenerator {
     }
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct ScoreRepository {
     score: usize
 }
 
 impl ScoreRepository {
-    fn save(value: usize) {
+    fn save(value: usize) -> Result<(),Box<Error>> {
         use std::fs::File;
         use std::io::Write;
         let score = ScoreRepository { score: value };
-        let bytes: Vec<u8> = bincode::serialize(&score).unwrap();
-        let mut file = File::create(".\\score.data").unwrap();
-        file.write_all(&bytes).unwrap();
+        let bytes: Vec<u8> = bincode::serialize(&score)?;
+        let mut file = File::create(".\\score.data")?;
+     match  file.write_all(&bytes) {
+         Ok(t) => Ok(t),
+         Err(e) => Err(Box::new(e))
+     }
     }
 
-    fn load() -> usize {
+    fn load() -> Result<usize, Box<Error>> {
         use std::fs::File;
         use std::io::Read;
-        let mut file = File::open("./score.data").unwrap();
-        let data: ScoreRepository = bincode::deserialize_from(file).unwrap();
-        data.score
+        let mut file = File::open("./score.data")?;
+        let data: ScoreRepository = bincode::deserialize_from(file)?;
+        Ok(data.score)
     }
 }
 
 //Business Logic Layer------------------------------------------------------------
+
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 struct Game {
     snake: Snake,
@@ -256,7 +260,7 @@ struct GameController {
     game: Game,
     max_score: usize,
     current_score: usize,
-    initial_score: usize
+    initial_score: usize,
 }
 
 impl GameController {
@@ -284,7 +288,10 @@ impl GameController {
             self.initial_score = vec.len();
         }
         if self.max_score == 0 {
-            self.max_score = ScoreRepository::load();
+            match ScoreRepository::load() {
+                Ok(v) => self.max_score = v,
+                Err(_) =>(),
+            };
         }
         self.current_score = vec.len() - self.initial_score;
         if self.current_score > self.max_score {
