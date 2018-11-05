@@ -273,6 +273,7 @@ impl Game {
     // Проверяем, прошло ли достаточно времени с момента когда мы в последний раз
     //двигали нашу змейку и если да то передвигаем ее
     // и проверяем столкновение головы змейки с остальными обьектами игры
+    // иначе ничего не делаем
     fn update(mut self, time_delta_in_seconds: f32) -> Game {
         let (game, is_moving) = self.is_time_to_move(time_delta_in_seconds);
         self = game;
@@ -287,14 +288,16 @@ impl Game {
         }
     }
 
-    //
+    //Проверяем, настало ли время для того чтобы передвинуть змейку.
     fn is_time_to_move(mut self, time_delta_in_seconds: f32) -> (Game, bool) {
         let time_to_move: f32 = 0.030;
         self.total_time += time_delta_in_seconds;
         if self.total_time > time_to_move {
             self.total_time -= time_to_move;
             (self, true)
-        } else { (self, false) }
+        } else {
+            (self, false)
+        }
     }
 
     //Проверяем, сьела ли наша змейку еду и если да
@@ -318,6 +321,7 @@ impl Game {
         self
     }
 
+    // Поворачиваем змейку в нужном направлении
     fn handle_input(mut self, input: Direction) -> Game {
         let snake = self.snake.turn(input);
         self.snake = snake;
@@ -342,6 +346,7 @@ impl Default for PointDtoType {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
+//Модель котору будет видеть представление для отображения пользователю.
 struct PointDto {
     x: u8,
     y: u8,
@@ -350,6 +355,7 @@ struct PointDto {
 
 //------------------------------Controller -----------------------------
 #[derive(Debug, Clone, Default)]
+// Контроллер который будет посредником между представлением и логикой нашей игры
 struct GameController {
     game: Game,
 }
@@ -359,18 +365,22 @@ impl GameController {
         GameController { game: Game::new(30, 30) }
     }
 
+    //Получить коллекцию точек которые нужно отрисовать в данный момент
     fn get_state(&self) -> Vec<PointDto> {
         let mut vec: Vec<PointDto> = Vec::new();
         vec.push(PointDto { x: self.game.food.x, y: self.game.food.y, state_type: PointDtoType::Food });
         let head = self.game.snake.head();
         vec.push(PointDto { x: head.x, y: head.y, state_type: PointDtoType::Head });
+        //Все точки за исключением головы змеи
         for p in self.game.snake.points.iter().filter(|p| **p != head) {
             vec.push(PointDto { x: p.x, y: p.y, state_type: PointDtoType::Tail });
         }
+        //горизонтальные линии фрейма
         for x in self.game.frame.min_x..=self.game.frame.max_x {
             vec.push(PointDto { x: x, y: self.game.frame.max_y, state_type: PointDtoType::Frame });
             vec.push(PointDto { x: x, y: self.game.frame.min_y, state_type: PointDtoType::Frame });
         }
+        //Вериткальные линии фрейма
         for y in self.game.frame.min_y..=self.game.frame.max_y {
             vec.push(PointDto { x: self.game.frame.max_x, y: y, state_type: PointDtoType::Frame });
             vec.push(PointDto { x: self.game.frame.min_x, y: y, state_type: PointDtoType::Frame });
@@ -378,14 +388,14 @@ impl GameController {
         vec
     }
 
+    //Обновляем состояние игры
     fn update(mut self, time_delta: f32, direction: Option<Direction>) -> GameController {
         let game = self.game.clone();
-        let game = match direction {
+        self.game  = match direction {
             None => game,
             Some(d) => game.handle_input(d)
-        };
-        let game = game.update(time_delta);
-        self.game = game;
+        }
+            .update(time_delta);
         self
     }
 
@@ -399,6 +409,7 @@ impl GameController {
 }
 
 //------------------------View ---------------
+//Представлие для отображение игры для пользователю и получение от него команд
 struct GameView {
     controller: GameController,
     window: three::Window,
@@ -408,27 +419,30 @@ struct GameView {
     font: Font,
     current_score: Text,
     max_score: Text,
-
 }
 
 impl GameView {
+
     fn new() -> GameView {
         let controller = GameController::new();
 
+        //Создаем окно в котором будет отображаться наша игра
         let mut window = three::Window::new("3D Snake Game By Victorem");
 
+        //Создаем камеру через которую игрок будет видеть нашу игру
         let camera = window.factory.perspective_camera(60.0, 10.0..40.0);
+        //Перемещяем камеру в [x, y, z]
         camera.set_position([15.0, 15.0, 30.0]);
-
-        let ambient_light = window.factory.ambient_light(0xdc8874, 0.5);
+        //Создаем постоянное окружающее освещение
+        let ambient_light = window.factory.ambient_light(0xFFFFFF, 0.5);
         window.scene.add(&ambient_light);
-
-        let mut dir_light = window.factory.directional_light(0xffffff, 0.9);
-        dir_light.look_at([150.0, 350.0, 350.0], [0.0, 0.0, 0.0], None);
-        let shadow_map = window.factory.shadow_map(2048, 2048);
-        dir_light.set_shadow(shadow_map, 400.0, 1.0..1000.0);
+        //Создаем направленный свет
+        let mut dir_light = window.factory.directional_light(0xffffff, 0.5);
+        dir_light.look_at([350.0, 350.0, 550.0], [0.0, 0.0, 0.0], None);
         window.scene.add(&dir_light);
+        //Загружаем из файла шрифт которым будет писать текст
         let font = window.factory.load_font(format!("{}/DejaVuSans.ttf", env!("CARGO_MANIFEST_DIR")));
+        //Создаем текст на экране куда будет записывать текущий и максимальный счет
         let current_score = window.factory.ui_text(&font, "0");
         let mut max_score = window.factory.ui_text(&font, "0");
         max_score.set_pos([0.0, 40.0]);
@@ -437,6 +451,7 @@ impl GameView {
         GameView { controller, window, camera, ambient: ambient_light, directional: dir_light, font, current_score, max_score }
     }
 
+    //Считываем клавишу которую последней нажал пользователь и на основании ее выбыраем новое направление
     fn get_input(&self) -> Option<Direction> {
         match self.window.input.keys_hit().last() {
             None => None,
@@ -451,8 +466,11 @@ impl GameView {
         }
     }
 
+    //Преобразуем модель полученную от контроллера в набор сеточных обьектов нашей сцены
     fn get_meshes(mut self) -> (Vec<Mesh>, GameView) {
+        //Создаем сферу
         let sphere = &three::Geometry::uv_sphere(0.5, 24, 24);
+        //Создаем зеленое покрытие для нашей сферы с моделью освещения по Фонгу
         let green = &three::material::Phong {
             color: three::color::GREEN,
             glossiness: 30.0,
@@ -470,6 +488,7 @@ impl GameView {
             glossiness: 30.0,
         };
 
+        // Преобразуем нашу модель в сеточные обьекты
         let meshes = self.controller.clone().get_state().iter().map(|s| {
             let state = s.clone();
             match state.state_type {
@@ -498,7 +517,9 @@ impl GameView {
         (meshes, self)
     }
 
+    //Обновляем наше предстовление
     fn update(mut self) -> GameView {
+        //Количество времени проешдшее с последнего обновления игры
         let elapsed_time = self.window.input.delta_time();
         let input = self.get_input();
         let controller = self.controller.update(elapsed_time, input);
@@ -506,21 +527,27 @@ impl GameView {
         self
     }
 
+    //Отображаем наше представление игроку
     fn draw(mut self) -> GameView {
         let (meshes, view) = self.get_meshes();
         self = view;
+        //Добавляем меши на сцену.
         for m in &meshes {
             self.window.scene.add(m);
         }
+        //Отрисовываем сцену на камеру
         self.window.render(&self.camera);
+        //Очищаем сцену
         for m in meshes {
             self.window.scene.remove(m);
         }
+        //Отображаем пользователю текущий счет
         self.max_score.set_text(format!("MAX SCORE: {}", self.controller.get_max_score()));
         self.current_score.set_text(format!("CURRENT SCORE: {}", self.controller.get_score()));
         self
     }
 
+    // Запускаем бесконечный цикл обновления и отрисовки игры
     pub fn run(mut self) {
         while self.window.update() && !self.window.input.hit(three::KEY_ESCAPE) {
             self = self.update().draw();
