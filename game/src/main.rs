@@ -1,3 +1,15 @@
+/*Подключаем внешние библиотеки.
+Также же в Cargo.toml
+
+[dependencies]
+rand="*"
+three="*"
+serde="*"
+bincode="*"
+serde_derive="*"
+
+прописываем
+*/
 extern crate rand;
 extern crate three;
 extern crate bincode;
@@ -5,25 +17,37 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
+// Добавляем нужные нам вещи в нашу область видимости.
 use rand::Rng;
 use three::*;
 use std::error::Error;
 
 //Entities ------------------------------------------------------------------
 
+/*
+Это макросы. Они генерируют какой нибудь код автоматически.
+В нашем конкретном случае:
+Debug - Создаст код который позволить выводить нашу структуру в терминал
+Clone - Создаст код который будет копировать нашу структуру т. е. у нашей структуры появиться метод clone()
+Eq и PartialEq позволять сравнивать наши Point с помошью оператора ==
+*/
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
+//Обьявление структуры с двумя полями. Она будет играть роль точки
 struct Point {
     x: u8,
     y: u8,
 }
 
+//Методы нашей структуры
 impl Point {
+    // Можно было использовать просто оператор == В общем, это метот который проверяет пересекаються ли наши точки
     pub fn intersects(&self, point: &Point) -> bool {
         self.x == point.x && self.y == point.y
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
+//Эта структура будет хранить обьектное представление границ фрейма в пределах которого будет двигаться наша змейка
 struct Frame {
     min_x: u8,
     min_y: u8,
@@ -41,6 +65,8 @@ impl Frame {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+//Обьявление перечисления с 4 вариантами
+//Оно будет отвечать за то куда в данный момент повернута голова змейки
 enum Direction {
     Left,
     Right,
@@ -48,6 +74,9 @@ enum Direction {
     Bottom,
 }
 
+//Резализация трейта (в других языках это еще называеться интерфейс)
+// для нашего перечесления.
+//Обьект реализующий этот трейт способен иметь значение по умолчанию.
 impl Default for Direction {
     fn default() -> Direction {
         return Direction::Right;
@@ -55,6 +84,7 @@ impl Default for Direction {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
+//Собственно наша змейка
 struct Snake {
     direction: Direction,
     points: std::collections::VecDeque<Point>,
@@ -63,6 +93,7 @@ struct Snake {
 }
 
 impl Snake {
+    //Статический метод конструктор для инициализации нового экземлпяра нашей змейки
     pub fn new(x: u8, y: u8) -> Snake {
         let mut points = std::collections::VecDeque::new();
         for i in 0..3 {
@@ -70,7 +101,7 @@ impl Snake {
         }
         Snake { direction: Direction::default(), points, start_x: x, start_y: y }
     }
-
+    //Увеличивает длину нашей змейки на одну точку
     pub fn grow(mut self) -> Snake {
         if let Some(tail) = self.points.pop_back() {
             self.points.push_back(Point { x: tail.x, y: tail.y });
@@ -79,15 +110,18 @@ impl Snake {
         self
     }
 
+    //Сбрасывает нашу змейку в начальное состояние
     pub fn reset(self) -> Snake {
         Snake::new(self.start_x, self.start_y)
     }
 
+    //Поворачивает голову змейки в нужном нам направлении
     pub fn turn(mut self, direction: Direction) -> Snake {
         self.direction = direction;
         self
     }
 
+    //Если голова змейки достает до еды то увеличивает длину змейки на один и возврашает информацию о том была ли еда съедена
     pub fn try_eat(mut self, point: &Point) -> (Snake, bool) {
         let head = self.head();
         if head.intersects(point) {
@@ -96,6 +130,7 @@ impl Snake {
         (self, false)
     }
 
+    //Если голова змейки столкнулась с фреймом то возвращает змейку в начальное состояние
     pub fn try_intersect_frame(mut self, frame: &Frame) -> Snake {
         let head = self.head();
         if frame.intersects(&head) {
@@ -104,7 +139,8 @@ impl Snake {
         self
     }
 
-    pub fn try_intersect_tali(mut self) -> Snake {
+    //Если голова змейки столкнулась с остальной частью то возвращает змейку в начальное состояние.
+    pub fn try_intersect_tail(mut self) -> Snake {
         let head = self.head();
         let p = self.points.clone();
         let points = p.into_iter().filter(|p| head.intersects(p));
@@ -114,10 +150,12 @@ impl Snake {
         self
     }
 
+    //Дает голову змейки
     pub fn head(&self) -> Point {
         self.points.front().unwrap().clone()
     }
 
+    //Перемещает змейку на одну точку в том направление куда в данный момент смотрит голова змейки
     pub fn move_snake(mut self) -> Snake {
         if let Some(mut tail) = self.points.pop_back() {
             let head = self.head();
@@ -148,11 +186,13 @@ impl Snake {
 //Data Access Layer ----------------------------------------------------------------
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
+//Структура для создания новой еды для змейки
 struct FoodGenerator {
     frame: Frame
 }
 
 impl FoodGenerator {
+    //Создает новую точку в случайном месте в пределах фрейма
     pub fn generate(&self) -> Point {
         let x = rand::thread_rng().gen_range(self.frame.min_x + 1, self.frame.max_x);
         let y = rand::thread_rng().gen_range(self.frame.min_y + 1, self.frame.max_y);
@@ -161,23 +201,33 @@ impl FoodGenerator {
 }
 
 #[derive(Serialize, Deserialize)]
+//Хранит текущий и максимальный счет игры
 struct ScoreRepository {
     score: usize
 }
 
 impl ScoreRepository {
+    //Статический метод для сохранения текущего счета в файле
+    // Result это перечесление которое может хранить в себе либо ошибку либо результат вычислений
     fn save(value: usize) -> Result<(), Box<Error>> {
         use std::fs::File;
         use std::io::Write;
         let score = ScoreRepository { score: value };
+        //Сериализуем структуру в массив байтов с помощью библиотеки bincode
         let bytes: Vec<u8> = bincode::serialize(&score)?;
+        //Создаем новый файл или если он уже сушествует то перезаписываем его.
         let mut file = File::create(".\\score.data")?;
         match file.write_all(&bytes) {
             Ok(t) => Ok(t),
+            //Error это трейт а у трейт нет точного размера во время компиляции поэтому
+            // нам надо обернуть значнеие в Box и в результате мы работает с указателем на
+            //кучу в памяти где лежит наш обьект а не с самим обьектом а у указателя есть определенный размер
+            // известный во время компиляции
             Err(e) => Err(Box::new(e))
         }
     }
 
+    //Загружаем сохраненный результат из файла
     fn load() -> Result<usize, Box<Error>> {
         use std::fs::File;
         let mut file = File::open("./score.data")?;
@@ -189,6 +239,7 @@ impl ScoreRepository {
 //Business Logic Layer------------------------------------------------------------
 
 #[derive(Debug, Clone, Default)]
+//Обьектное представление логики нашей игры
 struct Game {
     snake: Snake,
     frame: Frame,
@@ -200,6 +251,7 @@ struct Game {
 }
 
 impl Game {
+    //Конструктор для создания игры с фреймом заданной высоты и ширины
     fn new(height: u8, width: u8) -> Game {
         let frame = Frame { min_x: 0, min_y: 0, max_x: width, max_y: height };
         let generator = FoodGenerator { frame: frame.clone() };
@@ -218,22 +270,36 @@ impl Game {
             total_time: 0f32,
         }
     }
-    fn try_move(mut self, time_delta_in_seconds: f32) -> Game {
-        let time_to_move: f32 = 0.030;
-        self.total_time += time_delta_in_seconds;
-        let is_moving: bool = if self.total_time > time_to_move {
-            self.total_time -= time_to_move;
-            true
-        } else { false };
+    // Проверяем, прошло ли достаточно времени с момента когда мы в последний раз
+    //двигали нашу змейку и если да то передвигаем ее
+    // и проверяем столкновение головы змейки с остальными обьектами игры
+    fn update(mut self, time_delta_in_seconds: f32) -> Game {
+        let (game, is_moving) = self.is_time_to_move(time_delta_in_seconds);
+        self = game;
         if is_moving {
             self.snake = self.snake.clone()
-                .move_snake();
-            self
+                .move_snake()
+                .try_intersect_tail()
+                .try_intersect_frame(&self.frame);
+            self.try_eat()
         } else {
             self
         }
     }
 
+    //
+    fn is_time_to_move(mut self, time_delta_in_seconds: f32) -> (Game, bool) {
+        let time_to_move: f32 = 0.030;
+        self.total_time += time_delta_in_seconds;
+        if self.total_time > time_to_move {
+            self.total_time -= time_to_move;
+            (self, true)
+        } else { (self, false) }
+    }
+
+    //Проверяем, сьела ли наша змейку еду и если да
+    // то создаем новую еду, начисляем игроку очки
+    // иначе сбрасываем игроку текуший счет
     fn try_eat(mut self) -> Game {
         let initial_snake_len = 3;
         if self.snake.points.len() == initial_snake_len {
@@ -250,14 +316,6 @@ impl Game {
             }
         };
         self
-    }
-
-    fn update(mut self, time_delta_in_seconds: f32) -> Game {
-        self = self.try_move(time_delta_in_seconds);
-        self.snake = self.snake.clone()
-            .try_intersect_tali()
-            .try_intersect_frame(&self.frame);
-        self.try_eat()
     }
 
     fn handle_input(mut self, input: Direction) -> Game {

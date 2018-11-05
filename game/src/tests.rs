@@ -109,7 +109,7 @@ fn test_try_intersect_tail_true(){
     let snake2 = Snake::new(1,2);
     let head = snake.head();
     snake.points.push_back(head);
-    let snake = snake.try_intersect_tali();
+    let snake = snake.try_intersect_tail();
     assert_eq!(snake, snake2);
 }
 
@@ -117,7 +117,7 @@ fn test_try_intersect_tail_true(){
 fn test_try_intersect_tail_false(){
     let mut snake = Snake::new(1,2).grow();
     let snake2 = Snake::new(1,2);
-    let snake = snake.try_intersect_tali();
+    let snake = snake.try_intersect_tail();
     assert_ne!(snake,snake2);
     assert_eq!(1, snake.points.len() - snake2.points.len());
 }
