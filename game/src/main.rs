@@ -166,21 +166,20 @@ struct ScoreRepository {
 }
 
 impl ScoreRepository {
-    fn save(value: usize) -> Result<(),Box<Error>> {
+    fn save(value: usize) -> Result<(), Box<Error>> {
         use std::fs::File;
         use std::io::Write;
         let score = ScoreRepository { score: value };
         let bytes: Vec<u8> = bincode::serialize(&score)?;
         let mut file = File::create(".\\score.data")?;
-     match  file.write_all(&bytes) {
-         Ok(t) => Ok(t),
-         Err(e) => Err(Box::new(e))
-     }
+        match file.write_all(&bytes) {
+            Ok(t) => Ok(t),
+            Err(e) => Err(Box::new(e))
+        }
     }
 
     fn load() -> Result<usize, Box<Error>> {
         use std::fs::File;
-        use std::io::Read;
         let mut file = File::open("./score.data")?;
         let data: ScoreRepository = bincode::deserialize_from(file)?;
         Ok(data.score)
@@ -189,12 +188,15 @@ impl ScoreRepository {
 
 //Business Logic Layer------------------------------------------------------------
 
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Default)]
 struct Game {
     snake: Snake,
     frame: Frame,
     food: Point,
     food_generator: FoodGenerator,
+    score: usize,
+    max_score: usize,
+    total_time: f32,
 }
 
 impl Game {
@@ -204,24 +206,58 @@ impl Game {
         let food = generator.generate();
         let snake = Snake::new(width / 2, height / 2);
         Game {
-            snake: snake,
-            frame: frame,
-            food: food,
+            snake,
+            frame,
+            food,
             food_generator: generator,
+            score: 0,
+            max_score: match ScoreRepository::load() {
+                Ok(v) => v,
+                Err(_) => 0
+            },
+            total_time: 0f32,
+        }
+    }
+    fn try_move(mut self, time_delta_in_seconds: f32) -> Game {
+        let time_to_move: f32 = 0.030;
+        self.total_time += time_delta_in_seconds;
+        let is_moving: bool = if self.total_time > time_to_move {
+            self.total_time -= time_to_move;
+            true
+        } else { false };
+        if is_moving {
+            self.snake = self.snake.clone()
+                .move_snake();
+            self
+        } else {
+            self
         }
     }
 
-    fn update(mut self, time_delta: f32) -> Game {
+    fn try_eat(mut self) -> Game {
+        let initial_snake_len = 3;
+        if self.snake.points.len() == initial_snake_len {
+            self.score = 0
+        }
+        let (snake, eaten) = self.snake.clone().try_eat(&self.food);
+        self.snake = snake;
+        if eaten {
+            self.food = self.food_generator.generate();
+            self.score += 1;
+            if self.max_score < self.score {
+                self.max_score = self.score;
+                ScoreRepository::save(self.max_score);
+            }
+        };
+        self
+    }
+
+    fn update(mut self, time_delta_in_seconds: f32) -> Game {
+        self = self.try_move(time_delta_in_seconds);
         self.snake = self.snake.clone()
-            .move_snake()
             .try_intersect_tali()
             .try_intersect_frame(&self.frame);
-        let pair = self.snake.clone().try_eat(&self.food);
-        if pair.1 {
-            self.snake = pair.0;
-            self.food = self.food_generator.generate();
-        }
-        self
+        self.try_eat()
     }
 
     fn handle_input(mut self, input: Direction) -> Game {
@@ -255,20 +291,17 @@ struct PointDto {
 }
 
 //------------------------------Controller -----------------------------
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Default)]
 struct GameController {
     game: Game,
-    max_score: usize,
-    current_score: usize,
-    initial_score: usize,
 }
 
 impl GameController {
     fn new() -> GameController {
-        GameController { game: Game::new(30, 30), max_score: 0, current_score: 0, initial_score: 0 }
+        GameController { game: Game::new(30, 30) }
     }
 
-    fn get_state(&mut self) -> Vec<PointDto> {
+    fn get_state(&self) -> Vec<PointDto> {
         let mut vec: Vec<PointDto> = Vec::new();
         vec.push(PointDto { x: self.game.food.x, y: self.game.food.y, state_type: PointDtoType::Food });
         let head = self.game.snake.head();
@@ -284,20 +317,6 @@ impl GameController {
             vec.push(PointDto { x: self.game.frame.max_x, y: y, state_type: PointDtoType::Frame });
             vec.push(PointDto { x: self.game.frame.min_x, y: y, state_type: PointDtoType::Frame });
         }
-        if self.initial_score == 0 {
-            self.initial_score = vec.len();
-        }
-        if self.max_score == 0 {
-            match ScoreRepository::load() {
-                Ok(v) => self.max_score = v,
-                Err(_) =>(),
-            };
-        }
-        self.current_score = vec.len() - self.initial_score;
-        if self.current_score > self.max_score {
-            self.max_score = self.current_score;
-            ScoreRepository::save(self.max_score.clone());
-        };
         vec
     }
 
@@ -311,6 +330,14 @@ impl GameController {
         self.game = game;
         self
     }
+
+    pub fn get_max_score(&self) -> usize {
+        self.game.max_score.clone()
+    }
+
+    pub fn get_score(&self) -> usize {
+        self.game.score.clone()
+    }
 }
 
 //------------------------View ---------------
@@ -318,12 +345,12 @@ struct GameView {
     controller: GameController,
     window: three::Window,
     camera: three::camera::Camera,
-    timer: three::Timer,
     ambient: three::light::Ambient,
     directional: three::light::Directional,
     font: Font,
     current_score: Text,
     max_score: Text,
+
 }
 
 impl GameView {
@@ -343,16 +370,13 @@ impl GameView {
         let shadow_map = window.factory.shadow_map(2048, 2048);
         dir_light.set_shadow(shadow_map, 400.0, 1.0..1000.0);
         window.scene.add(&dir_light);
-
-        let mut timer = three::Timer::new();
-
         let font = window.factory.load_font(format!("{}/DejaVuSans.ttf", env!("CARGO_MANIFEST_DIR")));
         let current_score = window.factory.ui_text(&font, "0");
         let mut max_score = window.factory.ui_text(&font, "0");
         max_score.set_pos([0.0, 40.0]);
         window.scene.add(&current_score);
         window.scene.add(&max_score);
-        GameView { controller, window, camera, timer, ambient: ambient_light, directional: dir_light, font, current_score, max_score }
+        GameView { controller, window, camera, ambient: ambient_light, directional: dir_light, font, current_score, max_score }
     }
 
     fn get_input(&self) -> Option<Direction> {
@@ -369,7 +393,7 @@ impl GameView {
         }
     }
 
-    fn get_meshes(&mut self) -> Vec<Mesh> {
+    fn get_meshes(mut self) -> (Vec<Mesh>, GameView) {
         let sphere = &three::Geometry::uv_sphere(0.5, 24, 24);
         let green = &three::material::Phong {
             color: three::color::GREEN,
@@ -388,7 +412,7 @@ impl GameView {
             glossiness: 30.0,
         };
 
-        self.controller.get_state().iter().map(|s| {
+        let meshes = self.controller.clone().get_state().iter().map(|s| {
             let state = s.clone();
             match state.state_type {
                 PointDtoType::Frame => {
@@ -412,11 +436,12 @@ impl GameView {
                     m
                 }
             }
-        }).collect()
+        }).collect();
+        (meshes, self)
     }
 
     fn update(mut self) -> GameView {
-        let elapsed_time = self.timer.elapsed();
+        let elapsed_time = self.window.input.delta_time();
         let input = self.get_input();
         let controller = self.controller.update(elapsed_time, input);
         self.controller = controller;
@@ -424,7 +449,8 @@ impl GameView {
     }
 
     fn draw(mut self) -> GameView {
-        let meshes = self.get_meshes();
+        let (meshes, view) = self.get_meshes();
+        self = view;
         for m in &meshes {
             self.window.scene.add(m);
         }
@@ -432,8 +458,8 @@ impl GameView {
         for m in meshes {
             self.window.scene.remove(m);
         }
-        self.max_score.set_text(format!("MAX SCORE: {}", self.controller.max_score));
-        self.current_score.set_text(format!("CURRENT SCORE: {}", self.controller.current_score));
+        self.max_score.set_text(format!("MAX SCORE: {}", self.controller.get_max_score()));
+        self.current_score.set_text(format!("CURRENT SCORE: {}", self.controller.get_score()));
         self
     }
 
