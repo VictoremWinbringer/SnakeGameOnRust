@@ -216,7 +216,7 @@ impl ScoreRepository {
         //Сериализуем структуру в массив байтов с помощью библиотеки bincode
         let bytes: Vec<u8> = bincode::serialize(&score)?;
         //Создаем новый файл или если он уже сушествует то перезаписываем его.
-        let mut file = File::create(".\\score.data")?;
+        let mut file = File::create("./score.data")?;
         match file.write_all(&bytes) {
             Ok(t) => Ok(t),
             //Error это трейт а у трейт нет точного размера во время компиляции поэтому
@@ -441,7 +441,7 @@ impl GameView {
         dir_light.look_at([350.0, 350.0, 550.0], [0.0, 0.0, 0.0], None);
         window.scene.add(&dir_light);
         //Загружаем из файла шрифт которым будет писать текст
-        let font = window.factory.load_font(format!("{}/DejaVuSans.ttf", env!("CARGO_MANIFEST_DIR")));
+        let font = window.factory.load_font("./DejaVuSans.ttf");
         //Создаем текст на экране куда будет записывать текущий и максимальный счет
         let current_score = window.factory.ui_text(&font, "0");
         let mut max_score = window.factory.ui_text(&font, "0");
