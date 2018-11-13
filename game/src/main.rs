@@ -102,12 +102,13 @@ impl Snake {
         Snake { direction: Direction::default(), points, start_x: x, start_y: y }
     }
     //Увеличивает длину нашей змейки на одну точку
-    pub fn grow(mut self) -> Snake {
-        if let Some(tail) = self.points.pop_back() {
-            self.points.push_back(Point { x: tail.x, y: tail.y });
-            self.points.push_back(tail);
+    pub fn grow(self) -> Snake {
+        let mut points = self.points;
+        if let Some(tail) = points.pop_back() {
+            points.push_back(Point { x: tail.x, y: tail.y });
+            points.push_back(tail);
         }
-        self
+        Snake { points, ..self }
     }
 
     //Сбрасывает нашу змейку в начальное состояние
@@ -116,13 +117,12 @@ impl Snake {
     }
 
     //Поворачивает голову змейки в нужном нам направлении
-    pub fn turn(mut self, direction: Direction) -> Snake {
-        self.direction = direction;
-        self
+    pub fn turn(self, direction: Direction) -> Snake {
+        Snake { direction, ..self }
     }
 
     //Если голова змейки достает до еды то увеличивает длину змейки на один и возврашает информацию о том была ли еда съедена
-    pub fn try_eat(mut self, point: &Point) -> (Snake, bool) {
+    pub fn try_eat(self, point: &Point) -> (Snake, bool) {
         let head = self.head();
         if head.intersects(point) {
             return (self.grow(), true);
@@ -131,7 +131,7 @@ impl Snake {
     }
 
     //Если голова змейки столкнулась с фреймом то возвращает змейку в начальное состояние
-    pub fn try_intersect_frame(mut self, frame: &Frame) -> Snake {
+    pub fn try_intersect_frame(self, frame: &Frame) -> Snake {
         let head = self.head();
         if frame.intersects(&head) {
             return self.reset();
@@ -140,7 +140,7 @@ impl Snake {
     }
 
     //Если голова змейки столкнулась с остальной частью то возвращает змейку в начальное состояние.
-    pub fn try_intersect_tail(mut self) -> Snake {
+    pub fn try_intersect_tail(self) -> Snake {
         let head = self.head();
         let p = self.points.clone();
         let points = p.into_iter().filter(|p| head.intersects(p));
@@ -156,8 +156,9 @@ impl Snake {
     }
 
     //Перемещает змейку на одну точку в том направление куда в данный момент смотрит голова змейки
-    pub fn move_snake(mut self) -> Snake {
-        if let Some(mut tail) = self.points.pop_back() {
+    pub fn move_snake(self) -> Snake {
+        let mut points = self.points.clone();
+        if let Some(mut tail) = points.pop_back() {
             let head = self.head();
             match self.direction {
                 Direction::Right => {
@@ -177,9 +178,9 @@ impl Snake {
                     tail.y = head.y + 1;
                 }
             }
-            self.points.push_front(tail);
+            points.push_front(tail);
         }
-        self
+        Snake { points, ..self }
     }
 }
 
@@ -230,7 +231,7 @@ impl ScoreRepository {
     //Загружаем сохраненный результат из файла
     fn load() -> Result<usize, Box<Error>> {
         use std::fs::File;
-        let mut file = File::open("./score.data")?;
+        let file = File::open("./score.data")?;
         let data: ScoreRepository = bincode::deserialize_from(file)?;
         Ok(data.score)
     }
@@ -274,58 +275,61 @@ impl Game {
     //двигали нашу змейку и если да то передвигаем ее
     // и проверяем столкновение головы змейки с остальными обьектами игры
     // иначе ничего не делаем
-    fn update(mut self, time_delta_in_seconds: f32) -> Game {
+    fn update(self, time_delta_in_seconds: f32) -> Game {
         let (game, is_moving) = self.is_time_to_move(time_delta_in_seconds);
-        self = game;
         if is_moving {
-            self.snake = self.snake.clone()
-                .move_snake()
-                .try_intersect_tail()
-                .try_intersect_frame(&self.frame);
-            self.try_eat()
+            Game {
+                snake: game.snake
+                    .move_snake()
+                    .try_intersect_tail()
+                    .try_intersect_frame(&game.frame),
+                ..game
+            }
+                .try_eat()
         } else {
-            self
+            game
         }
     }
 
     //Проверяем, настало ли время для того чтобы передвинуть змейку.
-    fn is_time_to_move(mut self, time_delta_in_seconds: f32) -> (Game, bool) {
+    fn is_time_to_move(self, time_delta_in_seconds: f32) -> (Game, bool) {
         let time_to_move: f32 = 0.030;
-        self.total_time += time_delta_in_seconds;
-        if self.total_time > time_to_move {
-            self.total_time -= time_to_move;
-            (self, true)
+        let mut game = self;
+        game.total_time += time_delta_in_seconds;
+        if game.total_time > time_to_move {
+            game.total_time -= time_to_move;
+            (game, true)
         } else {
-            (self, false)
+            (game, false)
         }
     }
 
     //Проверяем, сьела ли наша змейку еду и если да
     // то создаем новую еду, начисляем игроку очки
     // иначе сбрасываем игроку текуший счет
-    fn try_eat(mut self) -> Game {
+    fn try_eat(self) -> Game {
+        let mut game = self;
         let initial_snake_len = 3;
-        if self.snake.points.len() == initial_snake_len {
-            self.score = 0
+        if game.snake.points.len() == initial_snake_len {
+            game.score = 0
         }
-        let (snake, eaten) = self.snake.clone().try_eat(&self.food);
-        self.snake = snake;
+        let (snake, eaten) = game.snake.clone().try_eat(&game.food);
+        game.snake = snake;
         if eaten {
-            self.food = self.food_generator.generate();
-            self.score += 1;
-            if self.max_score < self.score {
-                self.max_score = self.score;
-                ScoreRepository::save(self.max_score);
+            game.food = game.food_generator.generate();
+            game.score += 1;
+            if game.max_score < game.score {
+                game.max_score = game.score;
+                ScoreRepository::save(game.max_score);
             }
         };
-        self
+        game
     }
 
     // Поворачиваем змейку в нужном направлении
-    fn handle_input(mut self, input: Direction) -> Game {
+    fn handle_input(self, input: Direction) -> Game {
         let snake = self.snake.turn(input);
-        self.snake = snake;
-        self
+        Game { snake, ..self }
     }
 }
 
@@ -389,14 +393,14 @@ impl GameController {
     }
 
     //Обновляем состояние игры
-    fn update(mut self, time_delta: f32, direction: Option<Direction>) -> GameController {
-        let game = self.game.clone();
-        self.game  = match direction {
+    fn update(self, time_delta: f32, direction: Option<Direction>) -> GameController {
+        let game = self.game;
+        let game = match direction {
             None => game,
             Some(d) => game.handle_input(d)
         }
             .update(time_delta);
-        self
+        GameController { game }
     }
 
     pub fn get_max_score(&self) -> usize {
@@ -422,7 +426,6 @@ struct GameView {
 }
 
 impl GameView {
-
     fn new() -> GameView {
         let controller = GameController::new();
 
@@ -437,7 +440,7 @@ impl GameView {
         let ambient_light = window.factory.ambient_light(0xFFFFFF, 0.5);
         window.scene.add(&ambient_light);
         //Создаем направленный свет
-        let mut dir_light = window.factory.directional_light(0xffffff, 0.5);
+        let dir_light = window.factory.directional_light(0xffffff, 0.5);
         dir_light.look_at([350.0, 350.0, 550.0], [0.0, 0.0, 0.0], None);
         window.scene.add(&dir_light);
         //Загружаем из файла шрифт которым будет писать текст
@@ -467,96 +470,96 @@ impl GameView {
     }
 
     //Преобразуем модель полученную от контроллера в набор сеточных обьектов нашей сцены
-    fn get_meshes(mut self) -> (Vec<Mesh>, GameView) {
+    fn get_meshes(self) -> (Vec<Mesh>, GameView) {
         //Создаем сферу
         let sphere = &three::Geometry::uv_sphere(0.5, 24, 24);
         //Создаем зеленое покрытие для нашей сферы с моделью освещения по Фонгу
         let green = &three::material::Phong {
             color: three::color::GREEN,
-            glossiness: 30.0,
+            glossiness: 80.0,
         };
         let blue = &three::material::Phong {
             color: three::color::BLUE,
-            glossiness: 30.0,
+            glossiness: 80.0,
         };
         let red = &three::material::Phong {
             color: three::color::RED,
-            glossiness: 30.0,
+            glossiness: 80.0,
         };
         let yellow = &three::material::Phong {
             color: three::color::RED | three::color::GREEN,
-            glossiness: 30.0,
+            glossiness: 80.0,
         };
 
         // Преобразуем нашу модель в сеточные обьекты
-        let meshes = self.controller.clone().get_state().iter().map(|s| {
+        let mut view = self;
+        let meshes = view.controller.clone().get_state().iter().map(|s| {
             let state = s.clone();
             match state.state_type {
                 PointDtoType::Frame => {
-                    let m = self.window.factory.mesh(sphere.clone(), blue.clone());
+                    let m = view.window.factory.mesh(sphere.clone(), blue.clone());
                     m.set_position([state.x as f32, state.y as f32, 0.0]);
                     m
                 }
                 PointDtoType::Tail => {
-                    let m = self.window.factory.mesh(sphere.clone(), yellow.clone());
+                    let m = view.window.factory.mesh(sphere.clone(), yellow.clone());
                     m.set_position([state.x as f32, state.y as f32, 0.0]);
                     m
                 }
                 PointDtoType::Head => {
-                    let m = self.window.factory.mesh(sphere.clone(), red.clone());
+                    let m = view.window.factory.mesh(sphere.clone(), red.clone());
                     m.set_position([state.x as f32, state.y as f32, 0.0]);
                     m
                 }
                 PointDtoType::Food => {
-                    let m = self.window.factory.mesh(sphere.clone(), green.clone());
+                    let m = view.window.factory.mesh(sphere.clone(), green.clone());
                     m.set_position([state.x as f32, state.y as f32, 0.0]);
                     m
                 }
             }
         }).collect();
-        (meshes, self)
+        (meshes, view)
     }
 
     //Обновляем наше предстовление
-    fn update(mut self) -> GameView {
+    fn update(self) -> GameView {
         //Количество времени проешдшее с последнего обновления игры
         let elapsed_time = self.window.input.delta_time();
         let input = self.get_input();
         let controller = self.controller.update(elapsed_time, input);
-        self.controller = controller;
-        self
+        GameView { controller, ..self }
     }
 
     //Отображаем наше представление игроку
-    fn draw(mut self) -> GameView {
-        let (meshes, view) = self.get_meshes();
-        self = view;
+    fn draw(self) -> GameView {
+        let (meshes, mut view) = self.get_meshes();
         //Добавляем меши на сцену.
         for m in &meshes {
-            self.window.scene.add(m);
+            view.window.scene.add(m);
         }
         //Отрисовываем сцену на камеру
-        self.window.render(&self.camera);
+        view.window.render(&view.camera);
         //Очищаем сцену
         for m in meshes {
-            self.window.scene.remove(m);
+            view.window.scene.remove(m);
         }
         //Отображаем пользователю текущий счет
-        self.max_score.set_text(format!("MAX SCORE: {}", self.controller.get_max_score()));
-        self.current_score.set_text(format!("CURRENT SCORE: {}", self.controller.get_score()));
-        self
+        view.max_score.set_text(format!("MAX SCORE: {}", view.controller.get_max_score()));
+        view.current_score.set_text(format!("CURRENT SCORE: {}", view.controller.get_score()));
+        view
     }
 
     // Запускаем бесконечный цикл обновления и отрисовки игры
-    pub fn run(mut self) {
-        while self.window.update() && !self.window.input.hit(three::KEY_ESCAPE) {
-            self = self.update().draw();
+    pub fn run(self) {
+        let mut view = self;
+        while view.window.update() && !view.window.input.hit(three::KEY_ESCAPE) {
+            view = view.update().draw();
         }
     }
 }
 
 fn main() {
-    let mut view = GameView::new();
+    let view = GameView::new();
     view.run();
 }
 
